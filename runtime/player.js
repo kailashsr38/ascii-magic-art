@@ -6,7 +6,7 @@
  *   const stop = play(preElement, await import("./pieces/moonlit-sea.js"));
  */
 
-import { withLook } from "./glyphs.js";
+import { withLook, restyle } from "./glyphs.js";
 import { paint, renderMode, cellAspect, CELL_W, GlyphAtlas } from "./canvas.js";
 
 const ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;" };
@@ -70,6 +70,9 @@ export function play(pre, mod, opts = {}) {
     // circles or squares, text looks through a glyph atlas. The <pre> keeps
     // its prerendered text for screen readers, search and no-JS visitors.
     const draw = mode === "text" ? withLook(mod.default(), meta.palette, look) : mod.default();
+    // Pictures in a text look: below MERGE_PX a cell is too small to read, so k x k cells
+    // merge into one glyph (see restyleMerged). Same look, a fraction of the draw calls.
+    const raw = mode === "text" && meta.cell === "square" ? mod.default() : null, MERGE_PX = 5;
     if (!pre._canvas) {
       pre._canvas = document.createElement("canvas");
       pre._canvas.setAttribute("aria-hidden", "true");
@@ -90,8 +93,9 @@ export function play(pre, mod, opts = {}) {
     render = (t) => {
       const now = performance.now();
       if (now - checked > 500) { checked = now; measure(); }
-      const f = draw(t);
       const cw = px * CELL_W, ch = cw * aspect, dpr = Math.min(2, window.devicePixelRatio || 1);
+      const k = raw && cw < MERGE_PX ? Math.ceil(MERGE_PX / cw) : 1;
+      const f = k > 1 ? restyle(raw(t), meta.palette, { ...look, merge: k }) : draw(t);
       const W = Math.ceil(meta.cols * cw), H = Math.ceil(meta.rows * ch);
       if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) {
         cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
@@ -99,14 +103,17 @@ export function play(pre, mod, opts = {}) {
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
-      paint(ctx, f, f.palette || meta.palette, { ...look, cw, ch, mode, ink: color, atlas, dpr });
+      paint(ctx, f, f.palette || meta.palette, { ...look, cw: cw * k, ch: ch * k, mode, ink: color, atlas, dpr });
       if (opts.onFrame) opts.onFrame(f, t);
     };
   }
   render(opts.t0 ?? 0);
   if (reduce || meta.still) return () => {};
-  let raf = 0, visible = true, last = 0, elapsed = opts.t0 ?? 0, prev = 0, stopped = false;
+  let raf = 0, visible = true, elapsed = opts.t0 ?? 0, prev = 0, stopped = false;
   const step = 1000 / Math.min(meta.fps, opts.maxFps || 60);
+  // A random phase per player: a page of cards started together would otherwise all
+  // redraw on the same frame (one long frame, then idle ones), which reads as stutter.
+  let last = (typeof performance !== "undefined" ? performance.now() : 0) - Math.random() * step;
   const loop = (now) => {
     if (stopped) return;
     raf = requestAnimationFrame(loop);
@@ -114,7 +121,7 @@ export function play(pre, mod, opts = {}) {
     if (prev) elapsed += ((now - prev) / 1000) * speed;
     prev = now;
     if (now - last < step) return;
-    last = now;
+    last = now - ((now - last) % step); // keep the phase instead of snapping to this frame
     render(elapsed);
   };
   let io;

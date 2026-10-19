@@ -34,7 +34,12 @@ export const LOOKS = {
   blocks: { label: "Blocks", chars: " ░▒▓█" },
   squares: { label: "Squares", chars: " ·▪■" },
   lines: { label: "Lines", chars: " ╌─━═" },
+  // On canvas: square pixels switched on and off by an 8x8 Bayer pattern. As text
+  // (terminal, Copy as text): the same ordered dither in full blocks and spaces.
+  dither: { label: "Dither", chars: " █", sample: "▚▞▚▞" },
 };
+const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const ditherCh = (d, x, y) => (d > (BAYER4[(y & 3) * 4 + (x & 3)] + 0.5) / 16 ? "█" : " ");
 
 const rampCache = new Map();
 /** Sort a string of characters by ink, light to dark, keeping a leading space. */
@@ -114,13 +119,44 @@ export function restyle(frame, palette, opts = {}) {
   const str = typeof frame === "string";
   if (!chars) return opts.mono && !str ? frame.text : frame;
   const R = ramp(chars), n = R.length - 1;
+  if (opts.merge > 1 && !str) return restyleMerged(frame, palette, opts, R, opts.merge);
   const { T, D } = densityGrid(frame, palette, opts);
   // every inked cell gets at least the lightest glyph, like a halftone screen
+  const dither = opts.look === "dither" && !opts.chars;
   const out = T.map((row, y) => row.map((ch, x) => {
     const d = D[y][x];
-    return d < 0 ? ch : d === 0 ? " " : R[1 + Math.min(n - 1, Math.floor(d * n))];
+    return d < 0 ? ch : d === 0 ? " " : dither ? ditherCh(d, x, y) : R[1 + Math.min(n - 1, Math.floor(d * n))];
   }).join("")).join("\n");
   return str || opts.mono ? out : { text: out, color: frame.color, palette: opts.lift === false ? palette : lift(palette) };
+}
+
+/**
+ * The same look on a coarser grid: every k x k block of cells becomes one character
+ * (mean darkness, colour of its darkest-inked cell). Pictures with tiny cells use it so
+ * a thumbnail draws a few thousand legible glyphs instead of 20,000 unreadable ones.
+ */
+function restyleMerged(frame, palette, opts, R, k) {
+  const n = R.length - 1, { T, C, D, w, h } = densityGrid(frame, palette, opts);
+  const W = Math.ceil(w / k), H = Math.ceil(h / k), text = [], color = [];
+  for (let by = 0; by < H; by++) {
+    let tr = "", cr = "";
+    for (let bx = 0; bx < W; bx++) {
+      let sum = 0, cnt = 0, best = -1, key = " ", keep = null;
+      for (let y = by * k; y < Math.min(h, by * k + k); y++) for (let x = bx * k; x < Math.min(w, bx * k + k); x++) {
+        const d = D[y][x];
+        if (d < 0) { if (T[y][x] !== " " && keep === null) keep = [T[y][x], C ? C[y][x] : " "]; continue; }
+        sum += d; cnt++;
+        if (d > best) { best = d; key = C ? C[y][x] : " "; }
+      }
+      if (!cnt && keep) { tr += keep[0]; cr += keep[1]; continue; }
+      const d = cnt ? sum / cnt : 0;
+      tr += d === 0 ? " " : opts.look === "dither" && !opts.chars ? ditherCh(d, bx, by) : R[1 + Math.min(n - 1, Math.floor(d * n))];
+      cr += key;
+    }
+    text.push(tr); color.push(cr);
+  }
+  const out = text.join("\n");
+  return opts.mono ? out : { text: out, color: color.join("\n"), palette: opts.lift === false ? palette : lift(palette) };
 }
 
 export { lift, cover, isShade };

@@ -13,7 +13,7 @@ export const CELL_W = 0.602;
 export const cellAspect = (meta) => (meta && meta.cell === "square" ? 1 : 1 / CELL_W);
 
 /** Canvas-drawn looks. Anything else is drawn as text. */
-export const SHAPE_LOOKS = { dots: "circle", squares: "square" };
+export const SHAPE_LOOKS = { dots: "circle", squares: "square", dither: "dither" };
 
 /** Which way a piece is drawn for a look: "circle", "square" or "text". */
 export function renderMode(meta, look = {}) {
@@ -38,6 +38,7 @@ export function paint(ctx, frame, palette, opts) {
   const { x = 0, y = 0, cw, ch, ink = "#e4e4e7", mode = "text", size = 0.85, steps = 3 } = opts;
   if (frame.palette) palette = frame.palette;
   if (mode === "text") return paintText(ctx, frame, palette, x, y, cw, ch, ink, opts.atlas, opts.dpr);
+  if (mode === "dither") return paintTone(ctx, frame, palette, { ...opts, dither: true });
   if (!opts.invert && mode === "circle") return paintTone(ctx, frame, palette, opts);
   // A steeper curve than the text looks: mid-tones stay small, only light grows.
   const { T, C, D } = densityGrid(frame, palette, { ...opts, gamma: (opts.gamma ?? 0.75) * (opts.dotCurve ?? 1.9) });
@@ -178,6 +179,7 @@ function paintTone(ctx, frame, palette, opts) {
   const maxRadDev = 0.5 * unit * size * SIZES[SIZES.length - 1] * dpr;
   const stamp = maxRadDev <= 6 && typeof ImageData !== "undefined" && !opts.noStamp; // small dots: write pixels directly
   const dots = stamp ? SIZES.map(() => []) : null;
+  const pix = opts.dither ? [] : null; // dither: grid cells switched on by an 8x8 Bayer threshold
   const sample = (fx, fy) => { // bilinear brightness, nearest colour
     const c0 = Math.min(cols - 1, Math.max(0, Math.floor(fx))), r0 = Math.min(rows - 1, Math.max(0, Math.floor(fy)));
     const c1 = Math.min(cols - 1, c0 + 1), r1 = Math.min(rows - 1, r0 + 1), tx = Math.min(1, Math.max(0, fx - c0)), ty = Math.min(1, Math.max(0, fy - r0));
@@ -191,6 +193,7 @@ function paintTone(ctx, frame, palette, opts) {
     const [v, hx, empty] = density === 1 && cw === ch ? [vals[j * cols + i], keys[j * cols + i], vals[j * cols + i] < 0] : sample(px / cw - 0.5, py / ch - 0.5);
     if (empty || !hx) continue;
     const t = Math.pow(Math.min(1, Math.max(0, (v - a) / (b - a))), g);
+    if (pix) { if (t > (B8[(j & 7) * 8 + (i & 7)] + 0.5) / 64) pix.push(i, j, opts.mono ? opts.ink : brighten(hx, sat)); continue; }
     let lvl = Math.floor(t * SIZES.length - 0.5); const frac = t * SIZES.length - 0.5 - lvl;
     if (frac > (B4[(j & 3) * 4 + (i & 3)] + 0.5) / 16) lvl++;
     if (lvl < 0) continue;
@@ -202,12 +205,34 @@ function paintTone(ctx, frame, palette, opts) {
     const m = layers[lvl]; let p = m.get(fill); if (!p) m.set(fill, (p = new Path2D()));
     p.moveTo(x + px + rad, y + py); p.arc(x + px, y + py, rad, 0, Math.PI * 2);
   }
-  if (stamp) stampDots(ctx, dots);
+  if (pix) stampPixels(ctx, pix, x, y, sx, sy, dpr);
+  else if (stamp) stampDots(ctx, dots);
   else for (const m of layers) for (const [fill, p] of m) { ctx.fillStyle = fill; ctx.fill(p); } // big dots last, so they merge
   if (text.length) {
     ctx.font = `${cw / CELL_W}px ${FONT}`; ctx.textBaseline = "middle";
     for (const [r, c, gch, hx] of text) { ctx.fillStyle = (!opts.mono && hx) || opts.ink; ctx.fillText(gch, x + c * cw, y + (r + 0.5) * ch); }
   }
+}
+
+const B8 = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26, 12, 44, 4, 36, 14, 46, 6, 38, 60, 28, 52, 20, 62, 30, 54, 22,
+  3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25, 15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21];
+/* Dither pixels: solid rectangles written straight into one ImageData, edges rounded
+   to device pixels so neighbours meet without seams or overlaps. */
+function stampPixels(ctx, pix, x, y, sx, sy, dpr) {
+  const cv = ctx.canvas, W = cv.width, H = cv.height;
+  let img = cv._apImg;
+  if (!img || img.width !== W || img.height !== H) img = cv._apImg = new ImageData(W, H);
+  const d32 = new Uint32Array(img.data.buffer); d32.fill(0);
+  const le = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
+  for (let k = 0; k < pix.length; k += 3) {
+    const i = pix[k], j = pix[k + 1], hex = pix[k + 2];
+    let c = RGB.get(hex);
+    if (c === undefined) { const [r, g, b] = [1, 3, 5].map((o) => parseInt(hex.slice(o, o + 2), 16)); c = le ? (255 << 24) | (b << 16) | (g << 8) | r : (r << 24) | (g << 16) | (b << 8) | 255; RGB.set(hex, c >>> 0); c = c >>> 0; }
+    const x0 = Math.max(0, Math.round((x + i * sx) * dpr)), x1 = Math.min(W, Math.round((x + (i + 1) * sx) * dpr));
+    const y0 = Math.max(0, Math.round((y + j * sy) * dpr)), y1 = Math.min(H, Math.round((y + (j + 1) * sy) * dpr));
+    for (let yy = y0; yy < y1; yy++) d32.fill(c, yy * W + x0, yy * W + x1);
+  }
+  ctx.putImageData(img, 0, 0);
 }
 
 /* Pixel stamper for small dots: anti-aliased coverage masks per radius, written

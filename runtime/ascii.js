@@ -7,7 +7,7 @@
  *
  * Attributes: piece (slug), speed (1), still (no animation), size (font size
  * in px, default 12), bg (background colour, default transparent), look
- * (dots, ascii, dense, numbers, binary, letters, blocks, squares, lines),
+ * (dots, ascii, dense, numbers, binary, letters, blocks, squares, lines, dither),
  * chars (your own characters, light to dark), mono (one colour), contrast
  * (0 to 100, default 0), dot-size (halftone dot size, 25 to 120, default 51),
  * steps (halftone dot sizes: 3, 5, or 0 for smooth), density (dot spacing, 40

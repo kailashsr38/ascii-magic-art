@@ -51,7 +51,7 @@ Attributes:
 | `speed`   | playback speed, 1 is normal |
 | `still`   | show one frame, no animation |
 | `bg`      | background colour behind the art |
-| `look`    | redraw it in another character set: `dots`, `ascii`, `dense`, `numbers`, `binary`, `letters`, `blocks`, `squares`, `lines` |
+| `look`    | redraw it in another character set: `dots`, `ascii`, `dense`, `numbers`, `binary`, `letters`, `blocks`, `squares`, `lines`, `dither` |
 | `chars`   | your own characters instead of a look, e.g. `chars=" .oO@"` (sorted light to dark for you) |
 | `mono`    | one colour instead of the piece's palette |
 | `all`     | with `look` or `chars`, redraw text and line work too, not only shading |
