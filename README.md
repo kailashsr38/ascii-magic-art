@@ -6,6 +6,7 @@
   634 animated ASCII art pieces for web pages, READMEs, wallpapers and terminals.<br>
   Scenes, interfaces, charts, diagrams, 3D shapes, loaders, games, dividers and more, in 24 categories.<br>
   <a href="https://www.ascii-magic.com/ascii">Browse the library</a> ·
+  <a href="https://www.ascii-magic.com/ascii/docs">Docs</a> ·
   <a href="https://www.ascii-magic.com/ascii/banner">Make a README banner</a> ·
   <a href="https://www.ascii-magic.com/ascii/use">Use cases</a>
 </p>
@@ -53,7 +54,11 @@ Attributes:
 | `look`    | redraw it in another character set: `dots`, `ascii`, `dense`, `numbers`, `binary`, `letters`, `blocks`, `squares`, `lines` |
 | `chars`   | your own characters instead of a look, e.g. `chars=" .oO@"` (sorted light to dark for you) |
 | `mono`    | one colour instead of the piece's palette |
-| `contrast`| 0 to 100, default 50 |
+| `all`     | with `look` or `chars`, redraw text and line work too, not only shading |
+| `contrast`| 0 to 100, default 0 |
+| `dot-size`| halftone dot size for the `dots` look, 25 to 120, default 51 |
+| `density` | halftone dot spacing, 40 to 250, default 131 (more dots, same size) |
+| `steps`   | halftone dot sizes: `3`, `5`, or `0` for smooth |
 
 The element plays only while it is on screen, and holds a still frame for visitors who prefer reduced motion.
 
