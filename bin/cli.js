@@ -28,10 +28,35 @@ const flags = Object.fromEntries(argv.filter((a) => a.startsWith("--")).map((a) 
 const args = argv.filter((a) => !a.startsWith("-"));
 const slugs = fs.readdirSync(DIR).filter((f) => f.endsWith(".js")).map((f) => f.slice(0, -3)).sort();
 const out = process.stdout;
-const color = out.isTTY && process.env.NO_COLOR === undefined;
+const color = (out.isTTY || !!flags.color) && process.env.NO_COLOR === undefined;
+// 24-bit colour only where the terminal supports it. macOS Terminal.app does not: it reads the
+// numbers inside a 24-bit code as separate commands (46 = cyan background...), which garbles
+// the art. Everything else gets the nearest of the 256 standard colours.
+const env = process.env;
+const truecolor = flags.truecolor || /truecolor|24bit/i.test(env.COLORTERM || "") || env.FORCE_COLOR === "3" || !!env.WT_SESSION ||
+  (env.TERM_PROGRAM !== "Apple_Terminal" && /iTerm|WezTerm|vscode|ghostty|Hyper|Tabby|WarpTerminal|rio/i.test(env.TERM_PROGRAM || ""));
+// Nearest of the 240 standard colours (6x6x6 cube + 24 greys) by "redmean" distance, which
+// weights the channels the way eyes do; cached, since a piece uses a few dozen colours.
+const XLV = [0, 95, 135, 175, 215, 255], X256 = [];
+for (let n = 16; n < 256; n++) X256.push([n, ...(n >= 232 ? [8 + (n - 232) * 10, 8 + (n - 232) * 10, 8 + (n - 232) * 10] : [XLV[Math.floor((n - 16) / 36)], XLV[Math.floor((n - 16) / 6) % 6], XLV[(n - 16) % 6]])]);
+const near = new Map();
+function to256(r, g, b) {
+  const key = (r << 16) | (g << 8) | b;
+  let best = near.get(key);
+  if (best !== undefined) return best;
+  let bd = Infinity;
+  for (const [n, R, G, B] of X256) {
+    const rm = (r + R) / 2, d = (2 + rm / 256) * (r - R) ** 2 + 4 * (g - G) ** 2 + (2 + (255 - rm) / 256) * (b - B) ** 2;
+    if (d < bd) { bd = d; best = n; }
+  }
+  near.set(key, best);
+  return best;
+}
+const fgc = ([r, g, b]) => (truecolor ? `\x1b[38;2;${r};${g};${b}m` : `\x1b[38;5;${to256(r, g, b)}m`);
+const bgc = ([r, g, b]) => (truecolor ? `\x1b[48;2;${r};${g};${b}m` : `\x1b[48;5;${to256(r, g, b)}m`);
 const interactive = out.isTTY && process.stdin.isTTY;
 const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-const paint = (hex, s) => (color ? `\x1b[38;2;${rgb(hex).join(";")}m${s}\x1b[0m` : s);
+const paint = (hex, s) => (color ? `${fgc(rgb(hex))}${s}\x1b[0m` : s);
 const dim = (s) => (color ? `\x1b[2m${s}\x1b[22m` : s);
 const bold = (s) => (color ? `\x1b[1m${s}\x1b[22m` : s);
 
@@ -88,7 +113,7 @@ function colorRow(t, c, pal) {
   if (!color || !c) return t.join("");
   let s = "", key = null;
   for (let x = 0; x < t.length; x++) {
-    if (c[x] !== key) { key = c[x]; const hex = key !== " " && pal?.[key]; s += hex ? `\x1b[38;2;${rgb(hex).join(";")}m` : "\x1b[39m"; }
+    if (c[x] !== key) { key = c[x]; const hex = key !== " " && pal?.[key]; s += hex ? fgc(rgb(hex)) : "\x1b[39m"; }
     s += t[x];
   }
   return s + "\x1b[0m";
@@ -108,7 +133,7 @@ function halfBlocks(frame, pal, k = 1) {
   const lines = [];
   for (let y = 0; y < T.length; y += 2 * k) {
     let line = "";
-    for (let x = 0; x < T[0].length; x += k) line += `\x1b[38;2;${px(y, x).join(";")}m\x1b[48;2;${px(y + k, x).join(";")}m▀`;
+    for (let x = 0; x < T[0].length; x += k) line += `${fgc(px(y, x))}${bgc(px(y + k, x))}▀`;
     lines.push(line + "\x1b[0m");
   }
   return lines;
@@ -142,7 +167,7 @@ if (flags.help || flags.h || first === "help") {
 
   ${CMD}                      browse them all live, enter copies a prompt for your coding agent
   ${CMD} prompt <piece>       print and copy that prompt
-  ${CMD} <piece>              play one piece          ${dim("--look=dots  --chars=\" .oO@\"  --seconds=3  --frame")}
+  ${CMD} <piece>              play one piece          ${dim("--look=dots  --chars=\" .oO@\"  --seconds=3  --frame  --color  --truecolor")}
   ${CMD} --list               every piece name
 
   Browse on the web: ${SITE}/ascii
@@ -164,14 +189,27 @@ else { out.write(promptFor(null) + "\n"); process.exit(0); }
 async function play(slug) {
   if (!slugs.includes(slug)) { console.error(`No piece "${slug}". Try --list.`); process.exit(1); }
   const { meta, draw } = await load(slug);
-  const show = (f) => fitLines(f, meta).join("\n");
-  if (flags.frame) { out.write(show(draw(flags.t ? parseFloat(flags.t) : 1.5)) + "\n"); process.exit(0); }
-  out.write("\x1b[?25l\x1b[2J");
+  // In a terminal the piece is fitted to the window (pictures shrink, text pieces crop to the
+  // centre); piped output (a MOTD file) keeps the full size.
+  const box = () => (out.isTTY ? [Math.max(10, (out.columns || 80) - 1), Math.max(5, (out.rows || 24) - 1)] : [Infinity, Infinity]);
+  if (flags.frame) { const [w, h] = box(); out.write(fitLines(draw(flags.t ? parseFloat(flags.t) : 1.5), meta, w, h).join("\n") + "\n"); process.exit(0); }
+  // The alternate screen (like htop or vim): nothing scrolls, and the shell comes back as it was.
+  const alt = !flags.keep;
+  out.write((alt ? "\x1b[?1049h" : "") + "\x1b[?25l\x1b[2J");
   const t0 = Date.now();
-  const timer = setInterval(() => out.write("\x1b[H" + show(draw((Date.now() - t0) / 1000)) + "\n"), 1000 / meta.fps);
+  const frame = () => {
+    const [w, h] = box(), lines = fitLines(draw((Date.now() - t0) / 1000), meta, w, h);
+    const width = meta.cell === "square" && color && !restyled ? Math.ceil(meta.cols / Math.max(1, Math.ceil(meta.cols / w), Math.ceil(meta.rows / (2 * h)))) : Math.min(meta.cols, w);
+    const padL = " ".repeat(Math.max(0, Math.floor(((out.columns || 80) - width) / 2))), padT = Math.max(0, Math.floor(((out.rows || 24) - lines.length) / 2));
+    // no newline after the last line: a frame as tall as the window must not scroll it
+    out.write("\x1b[H" + "\x1b[K\n".repeat(padT) + lines.map((l) => padL + l + "\x1b[K").join("\n") + "\x1b[0m\x1b[J");
+  };
+  frame();
+  const timer = setInterval(frame, 1000 / meta.fps);
+  out.on("resize", () => out.write("\x1b[2J"));
   const stop = (byKey) => {
     clearInterval(timer);
-    out.write("\x1b[0m\x1b[?25h" + (flags.keep ? "\n" : "\x1b[2J\x1b[H"));
+    out.write("\x1b[0m\x1b[?25h" + (alt ? "\x1b[?1049l" : "\n"));
     // a hint only when someone pressed a key, never at shell startup (--seconds)
     if (byKey && interactive && !flags.seconds) out.write(`  Add ${meta.name} to your project in one prompt:  ${bold(`${CMD} prompt ${slug}`)}\n`);
     process.exit(0);
@@ -193,10 +231,10 @@ async function browse() {
   if (i < 0) i = 0;
   let cur = null, t0 = 0, timer = null, toast = "", toastUntil = 0, intro = true;
 
-  const cleanup = () => { clearInterval(timer); out.write("\x1b[0m\x1b[?25h\x1b[2J\x1b[H"); try { process.stdin.setRawMode(false); } catch {} process.stdin.pause(); };
+  const cleanup = () => { clearInterval(timer); out.write("\x1b[0m\x1b[?25h\x1b[?1049l"); try { process.stdin.setRawMode(false); } catch {} process.stdin.pause(); };
   const quit = () => { cleanup(); out.write(`  634 pieces to browse on the web: ${SITE}/ascii\n  Add one in one prompt:  ${bold(`${CMD} prompt <piece>`)}\n\n`); process.exit(0); };
   process.on("SIGINT", quit);
-  out.write("\x1b[?25l\x1b[2J");
+  out.write("\x1b[?1049h\x1b[?25l\x1b[2J");
   process.stdin.setRawMode(true); process.stdin.resume();
 
   // intro: the wordmark types in, then the one-prompt line
@@ -226,7 +264,7 @@ async function browse() {
             if (x > reveal || row[x] === " ") { line += " "; continue; }
             const shine = Math.max(0, 1 - Math.abs(x - (t - 1) * 60) / 6);
             const c = grad(x / mw).map((v) => Math.round(v + (255 - v) * shine));
-            line += `\x1b[38;2;${c.join(";")}m${row[x]}`;
+            line += `${fgc(c)}${row[x]}`;
           }
           s += line + "\x1b[0m\x1b[K\n";
         }
