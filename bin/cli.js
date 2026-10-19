@@ -16,7 +16,7 @@ import fs from "fs";
 import path from "path";
 import { spawnSync } from "child_process";
 import { fileURLToPath, pathToFileURL } from "url";
-import { withLook, LOOKS } from "../runtime/glyphs.js";
+import { withLook, restyle, LOOKS } from "../runtime/glyphs.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DIR = path.join(ROOT, "pieces");
@@ -65,8 +65,9 @@ const lookOpts = { look: flags.look, chars: flags.chars, mono: !!flags.mono, all
 const restyled = !!(flags.look || flags.chars);
 
 /* ── the one prompt ─────────────────────────────────────────────────────── */
-function promptFor(slug, name) {
-  const look = flags.look ? ` look="${flags.look}"` : "";
+function promptFor(slug, name, picked) {
+  const lk = picked ? picked.look : flags.look, all = picked ? picked.all : flags.all;
+  const look = (lk && lk !== "original" ? ` look="${lk}"` : "") + (lk && lk !== "original" && all ? " all" : "");
   if (!slug) return `Add an animated ASCII art piece from ASCII Magic to this project.
 
 1. Read ${SITE}/ascii/index.json (634 pieces) and pick the one that fits this project best.
@@ -99,8 +100,8 @@ function copy(text) {
   return false;
 }
 
-function givePrompt(slug, name) {
-  const text = promptFor(slug, name);
+function givePrompt(slug, name, picked) {
+  const text = promptFor(slug, name, picked);
   const ok = copy(text);
   const rule = dim("─".repeat(Math.min(72, (out.columns || 80) - 4)));
   out.write(`\n  ${ok ? paint("#00f5a0", "✓ Prompt copied to your clipboard.") : bold("Copy this prompt:")} ${ok ? "Paste it into Claude Code, Cursor, Copilot or any coding agent." : "Paste it into your coding agent."}\n\n  ${rule}\n`);
@@ -139,10 +140,10 @@ function halfBlocks(frame, pal, k = 1) {
   return lines;
 }
 // A frame as terminal lines, fitted into w x h (square pictures shrink, text pieces crop to the centre).
-function fitLines(frame, meta, w = Infinity, h = Infinity) {
+function fitLines(frame, meta, w = Infinity, h = Infinity, styled = restyled) {
   if (typeof frame === "string") frame = { text: frame, color: null };
   const pal = frame.palette || meta.palette;
-  if (meta.cell === "square" && color && frame.color && !restyled) {
+  if (meta.cell === "square" && color && frame.color && !styled) {
     const k = Math.max(1, Math.ceil(meta.cols / w), Math.ceil(meta.rows / (2 * h)));
     return halfBlocks(frame, pal, k);
   }
@@ -156,7 +157,7 @@ function fitLines(frame, meta, w = Infinity, h = Infinity) {
 
 async function load(slug) {
   const mod = await import(pathToFileURL(path.join(DIR, slug + ".js")).href);
-  return { meta: mod.meta, draw: withLook(mod.default(), mod.meta.palette, lookOpts) };
+  return { meta: mod.meta, raw: mod.default(), draw: withLook(mod.default(), mod.meta.palette, lookOpts) };
 }
 
 /* ── commands ───────────────────────────────────────────────────────────── */
@@ -165,7 +166,7 @@ if (flags.help || flags.h || first === "help") {
   out.write(`
   ${bold("ascii-magic-art")}  634 animated ASCII art pieces for web pages, READMEs and terminals
 
-  ${CMD}                      browse them all live, enter copies a prompt for your coding agent
+  ${CMD}                      browse them all live (s changes the look), enter copies a prompt for your coding agent
   ${CMD} prompt <piece>       print and copy that prompt
   ${CMD} <piece>              play one piece          ${dim("--look=dots  --chars=\" .oO@\"  --seconds=3  --frame  --color  --truecolor")}
   ${CMD} --list               every piece name
@@ -230,6 +231,11 @@ async function browse() {
   let i = list.findIndex((m) => m.slug === FEATURED[Math.floor(Math.random() * FEATURED.length)]);
   if (i < 0) i = 0;
   let cur = null, t0 = 0, timer = null, toast = "", toastUntil = 0, intro = true;
+  // looks you can cycle with s / S while browsing; a redraws text and line art too
+  const LOOK_KEYS = Object.keys(LOOKS);
+  let li = Math.max(0, LOOK_KEYS.indexOf(flags.look || "original")), all = !!flags.all;
+  const lookNow = () => LOOK_KEYS[li];
+  const frameAt = (t) => { const raw = cur.raw(t), lk = lookNow(); return lk === "original" ? raw : restyle(raw, cur.meta.palette, { look: lk, all }); };
 
   const cleanup = () => { clearInterval(timer); out.write("\x1b[0m\x1b[?25h\x1b[?1049l"); try { process.stdin.setRawMode(false); } catch {} process.stdin.pause(); };
   const quit = () => { cleanup(); out.write(`  634 pieces to browse on the web: ${SITE}/ascii\n  Add one in one prompt:  ${bold(`${CMD} prompt <piece>`)}\n\n`); process.exit(0); };
@@ -250,8 +256,8 @@ async function browse() {
     const W = out.columns || 80, H = out.rows || 24, mw = MARK[0].length;
     if (!color || W < mw + 4 || H < 14) { intro = false; return; }
     const pad = " ".repeat(Math.floor((W - mw) / 2)), top = Math.max(1, Math.floor((H - 12) / 2));
-    const lines2 = [`${bold("634 animated ASCII pieces.")} Add one to your project in ${paint("#00f5a0", "one prompt")}.`, dim("Browse with the arrow keys, press enter, paste into your coding agent.")];
-    const plain2 = ["634 animated ASCII pieces. Add one to your project in one prompt.", "Browse with the arrow keys, press enter, paste into your coding agent."];
+    const lines2 = [`${bold("634 animated ASCII pieces.")} Add one to your project in ${paint("#00f5a0", "one prompt")}.`, dim("Arrow keys to browse, s to change the look, enter to copy, paste into your coding agent.")];
+    const plain2 = ["634 animated ASCII pieces. Add one to your project in one prompt.", "Arrow keys to browse, s to change the look, enter to copy, paste into your coding agent."];
     const start = Date.now();
     await new Promise((res) => {
       const tick = setInterval(() => {
@@ -289,11 +295,13 @@ async function browse() {
   function frame() {
     if (!cur) return;
     const W = out.columns || 80, H = out.rows || 24, m = cur.meta;
-    const lines = fitLines(cur.draw((Date.now() - t0) / 1000), m, W - 2, H - 5);
-    const vis = m.cell === "square" && color && !restyled ? Math.ceil(m.cols / Math.max(1, Math.ceil(m.cols / (W - 2)), Math.ceil(m.rows / (2 * (H - 5))))) : Math.min(m.cols, W - 2);
+    const styled = lookNow() !== "original";
+    const lines = fitLines(frameAt((Date.now() - t0) / 1000), m, W - 2, H - 5, styled);
+    const vis = m.cell === "square" && color && !styled ? Math.ceil(m.cols / Math.max(1, Math.ceil(m.cols / (W - 2)), Math.ceil(m.rows / (2 * (H - 5))))) : Math.min(m.cols, W - 2);
     const pad = " ".repeat(Math.max(0, Math.floor((W - vis) / 2)));
-    const head = `  ${paint("#00d2ff", "ASCII")} ${paint("#00f5a0", "MAGIC")}   ${bold(m.name)}  ${dim(`${catName[m.category] || m.category}  ·  ${i + 1}/${list.length}`)}`;
-    const keys = [["← →", "browse"], ["↑ ↓", "category"], ["enter", "copy the prompt"], ["c", "copy as text"], ["q", "quit"]].map(([k, v]) => `${bold(k)} ${dim(v)}`).join("   ");
+    const lookLabel = LOOKS[lookNow()].label + (all && lookNow() !== "original" ? " + text" : "");
+    const head = `  ${paint("#00d2ff", "ASCII")} ${paint("#00f5a0", "MAGIC")}   ${bold(m.name)}  ${dim(`${catName[m.category] || m.category}  ·  ${i + 1}/${list.length}`)}   ${dim("look")} ${paint("#00f5a0", lookLabel)}`;
+    const keys = [["← →", "browse"], ["↑ ↓", "category"], ["s", "look"], ["a", "text too"], ["enter", "copy the prompt"], ["c", "copy as text"], ["q", "quit"]].map(([k, v]) => `${bold(k)} ${dim(v)}`).join("   ");
     const foot = Date.now() < toastUntil ? `  ${paint("#00f5a0", toast)}` : `  ${keys}`;
     const gap = Math.max(0, H - 4 - lines.length), above = Math.floor(gap / 2);
     out.write("\x1b[H" + head + "\x1b[K\n\x1b[K\n" + "\x1b[K\n".repeat(above) + lines.map((l) => pad + l + "\x1b[K").join("\n") + "\n" + "\x1b[K\n".repeat(gap - above) + foot + "\x1b[K");
@@ -316,12 +324,14 @@ async function browse() {
     if (key === "\x1b[D" || key === "h") return open(i - 1);
     if (key === "\x1b[B" || key === "j") return jumpCategory(1);
     if (key === "\x1b[A" || key === "k") return jumpCategory(-1);
+    if (key === "s" || key === "S") { li = (li + (key === "s" ? 1 : LOOK_KEYS.length - 1)) % LOOK_KEYS.length; out.write("\x1b[2J"); return frame(); }
+    if (key === "a") { all = !all; out.write("\x1b[2J"); return frame(); }
     if (key === "c") {
-      const f = cur.draw((Date.now() - t0) / 1000);
+      const f = frameAt((Date.now() - t0) / 1000);
       toast = copy(typeof f === "string" ? f : f.text) ? `✓ Copied this frame of ${cur.meta.name} as text` : "Could not reach the clipboard on this system";
       toastUntil = Date.now() + 1800; return;
     }
-    if (key === "\r" || key === "\n") { cleanup(); givePrompt(list[i].slug, list[i].name); process.exit(0); }
+    if (key === "\r" || key === "\n") { cleanup(); givePrompt(list[i].slug, list[i].name, { look: lookNow(), all }); process.exit(0); }
   });
   out.on("resize", () => out.write("\x1b[2J"));
   await playIntro();
