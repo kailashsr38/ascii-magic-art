@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="749" height="178" viewBox="0 0 749 178" role="img" aria-label="ascii magic">
+<title>ascii magic</title>
+<style>.rv{animation:rv 6s steps(73,end) infinite;transform-origin:0 0}@keyframes rv{0%{transform:scaleX(0)}40%,100%{transform:scaleX(1)}}.sh{animation:sh 3s ease-in-out 2.4s infinite}@keyframes sh{0%{transform:translateX(0)}60%,100%{transform:translateX(1198px)}}@media (prefers-reduced-motion:reduce){.rv,.sh,.fl{animation:none}.sh{opacity:0}}</style>
+<defs>
+<linearGradient id="g" gradientUnits="userSpaceOnUse" x1="24" y1="0" x2="724.8" y2="0"><stop offset="0.000" stop-color="#00d2ff"/><stop offset="0.500" stop-color="#3a7bd5"/><stop offset="1.000" stop-color="#00f5a0"/></linearGradient>
+
+<linearGradient id="s" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<clipPath id="t"><text font-family='ui-monospace,SFMono-Regular,Menlo,Consolas,"DejaVu Sans Mono",monospace' font-size="16" xml:space="preserve"><tspan x="24" y="37.1" textLength="700.8" lengthAdjust="spacingAndGlyphs"> █████╗ ███████╗ ██████╗██╗██╗    ███╗   ███╗ █████╗  ██████╗ ██╗ ██████╗</tspan><tspan x="24" y="53.1" textLength="700.8" lengthAdjust="spacingAndGlyphs">██╔══██╗██╔════╝██╔════╝██║██║    ████╗ ████║██╔══██╗██╔════╝ ██║██╔════╝</tspan><tspan x="24" y="69.1" textLength="700.8" lengthAdjust="spacingAndGlyphs">███████║███████╗██║     ██║██║    ██╔████╔██║███████║██║  ███╗██║██║     </tspan><tspan x="24" y="85.1" textLength="700.8" lengthAdjust="spacingAndGlyphs">██╔══██║╚════██║██║     ██║██║    ██║╚██╔╝██║██╔══██║██║   ██║██║██║     </tspan><tspan x="24" y="101.1" textLength="700.8" lengthAdjust="spacingAndGlyphs">██║  ██║███████║╚██████╗██║██║    ██║ ╚═╝ ██║██║  ██║╚██████╔╝██║╚██████╗</tspan><tspan x="24" y="117.1" textLength="700.8" lengthAdjust="spacingAndGlyphs">╚═╝  ╚═╝╚══════╝ ╚═════╝╚═╝╚═╝    ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝ ╚═════╝</tspan></text></clipPath>
+<clipPath id="r"><rect class="rv" x="0" y="0" width="749" height="178"/></clipPath>
+</defs>
+
+<g clip-path="url(#r)"><g clip-path="url(#t)">
+<rect x="0" y="0" width="749" height="178" fill="url(#g)"/>
+<rect class="sh" x="-262" y="0" width="225" height="178" fill="url(#s)"/>
+</g></g>
+<text x="374.5" y="158" text-anchor="middle" font-family='ui-monospace,SFMono-Regular,Menlo,Consolas,"DejaVu Sans Mono",monospace' font-size="15" fill="#a1a1aa">animated ASCII art for web pages, READMEs and terminals</text>
+</svg>

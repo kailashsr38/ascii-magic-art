@@ -1,0 +1,16 @@
+ascii-magic-art
+Copyright (c) 2026 ASCII Magic (ascii-magic.com)
+
+The code and pieces in this package are released under the MIT License (see LICENSE),
+with one exception:
+
+  pieces/ocean-sunset.js
+  pieces/starry-ridge.js
+
+These two scenes are halftone renderings of photographs published on Unsplash under the
+Unsplash License (https://unsplash.com/license). The image data in these two files stays
+under that license, not MIT. You may use and modify them, but not sell them unaltered or
+use them to build a competing photo service.
+
+  Ocean Sunset: photo by César Couto (unsplash.com/photos/ZGx6vRlEySY)
+  Starry Ridge: photo by Vincentiu Solomon (unsplash.com/photos/ln5drpv_ImI)

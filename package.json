@@ -1,0 +1,45 @@
+{
+  "name": "ascii-magic-art",
+  "version": "1.0.0",
+  "description": "634 animated ASCII art pieces for web pages, READMEs, wallpapers and terminals: scenes, UI, charts, diagrams, 3D shapes, loaders and more.",
+  "keywords": [
+    "ascii",
+    "ascii-art",
+    "animation",
+    "animated-ascii",
+    "terminal",
+    "cli",
+    "readme",
+    "banner",
+    "loader",
+    "spinner",
+    "web-component",
+    "wallpaper",
+    "generative-art"
+  ],
+  "homepage": "https://www.ascii-magic.com/ascii",
+  "bugs": {
+    "url": "https://github.com/kailashsr38/ascii-magic-art/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kailashsr38/ascii-magic-art.git"
+  },
+  "license": "MIT",
+  "author": "ASCII Magic (https://www.ascii-magic.com)",
+  "type": "module",
+  "bin": {
+    "ascii-magic-art": "bin/cli.js"
+  },
+  "files": [
+    "pieces",
+    "lib",
+    "runtime",
+    "bin",
+    "categories.json",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

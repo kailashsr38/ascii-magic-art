@@ -1,0 +1,122 @@
+[
+ {
+  "id": "landscapes",
+  "name": "Landscapes",
+  "blurb": "Hand-built places and skies that move: coasts, peaks, cities at night."
+ },
+ {
+  "id": "screens",
+  "name": "UI",
+  "blurb": "Working interfaces in text: apps, terminals, tools and system screens."
+ },
+ {
+  "id": "live-data",
+  "name": "Live Data",
+  "blurb": "Charts, gauges and tables that keep updating."
+ },
+ {
+  "id": "explainers",
+  "name": "Explainers",
+  "blurb": "Animated diagrams that show how something works, step by step."
+ },
+ {
+  "id": "lettering",
+  "name": "Lettering",
+  "blurb": "Words that move: big letterforms, credits, tickers and reading effects."
+ },
+ {
+  "id": "solids",
+  "name": "Solids",
+  "blurb": "Rotating 3D forms, shaded in characters."
+ },
+ {
+  "id": "cosmos",
+  "name": "Cosmos",
+  "blurb": "Planets, stars, orbits and the craft that visit them."
+ },
+ {
+  "id": "motion-lab",
+  "name": "Motion Lab",
+  "blurb": "Simulations: pendulums, waves, particles and fields."
+ },
+ {
+  "id": "weather",
+  "name": "Weather & Wild",
+  "blurb": "Rain, fire, wind, plants and the elements."
+ },
+ {
+  "id": "animals",
+  "name": "Animals",
+  "blurb": "Living things, from cats to whales."
+ },
+ {
+  "id": "things",
+  "name": "Things",
+  "blurb": "Everyday objects with moving parts."
+ },
+ {
+  "id": "algorithms",
+  "name": "Algorithms",
+  "blurb": "Maths and code that draw: fractals, automata, attractors."
+ },
+ {
+  "id": "demoscene",
+  "name": "Demoscene",
+  "blurb": "Classic demo effects: fire, plasma, tunnels and warps."
+ },
+ {
+  "id": "arcade",
+  "name": "Arcade",
+  "blurb": "Little games that play themselves."
+ },
+ {
+  "id": "frames",
+  "name": "Rules & Frames",
+  "blurb": "Animated dividers, borders and frames for layouts."
+ },
+ {
+  "id": "occasions",
+  "name": "Occasions",
+  "blurb": "Festivals, holidays and celebrations."
+ },
+ {
+  "id": "cities",
+  "name": "Cities of the World",
+  "blurb": "Famous places around the world, hand-built and alive."
+ },
+ {
+  "id": "mascots",
+  "name": "Mascots & Characters",
+  "blurb": "Original characters with personality, for 404s, empty states and READMEs."
+ },
+ {
+  "id": "empty-states",
+  "name": "Empty States & Feedback",
+  "blurb": "No results, all done, offline, success, error: the moments every app needs."
+ },
+ {
+  "id": "retro",
+  "name": "Retro Computing",
+  "blurb": "Boot screens, teletypes, tapes and the machines that started it all."
+ },
+ {
+  "id": "science",
+  "name": "Science & Learning",
+  "blurb": "How things work, from cells to the water cycle."
+ },
+ {
+  "id": "music",
+  "name": "Music & Sound",
+  "blurb": "Equalisers, turntables, sequencers and waveforms."
+ },
+ {
+  "id": "food",
+  "name": "Food & Drink",
+  "blurb": "Steam, sizzle and pour: food that moves."
+ },
+ {
+  "id": "india",
+  "name": "India",
+  "blurb": "Festivals, streets, monsoons and moments from across India."
+ }
+]
