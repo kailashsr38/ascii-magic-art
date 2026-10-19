@@ -3,7 +3,7 @@
  * (true circles and squares sized by each cell's darkness), for square-cell
  * pieces, and for image, wallpaper, thumbnail, GIF and video exports.
  */
-import { densityGrid, lift, LOOKS, restyle, cover, isShade } from "./glyphs.js";
+import { densityGrid, lift, LOOKS, restyle, cover, isShade, shadeTester } from "./glyphs.js";
 
 export const FONT = 'Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace';
 /** Width of one monospace cell as a fraction of the font size. */
@@ -34,11 +34,24 @@ export function cellSize(ctx, px, aspect = 1 / CELL_W) {
  * default 3), invert (on light paper: dark areas get the big dots, as in
  * print), plus look options for the density (all, gamma, mono).
  */
+// Players read the ink from CSS ("rgb(228, 228, 231)"); the pixel painters need "#rrggbb".
+const hexCache = new Map();
+export function toHex(c) {
+  if (!c || (c[0] === "#" && c.length === 7)) return c;
+  let h = hexCache.get(c);
+  if (h) return h;
+  if (c[0] === "#" && c.length === 4) h = "#" + [1, 2, 3].map((i) => c[i] + c[i]).join("");
+  else { const m = c.match(/\d+(\.\d+)?/g); h = m && m.length >= 3 ? "#" + m.slice(0, 3).map((v) => Math.max(0, Math.min(255, Math.round(+v))).toString(16).padStart(2, "0")).join("") : "#e4e4e7"; }
+  hexCache.set(c, h);
+  return h;
+}
+
 export function paint(ctx, frame, palette, opts) {
+  if (opts.ink && !(opts.ink[0] === "#" && opts.ink.length === 7)) opts = { ...opts, ink: toHex(opts.ink) };
   const { x = 0, y = 0, cw, ch, ink = "#e4e4e7", mode = "text", size = 0.85, steps = 3 } = opts;
   if (frame.palette) palette = frame.palette;
   if (mode === "text") return paintText(ctx, frame, palette, x, y, cw, ch, ink, opts.atlas, opts.dpr);
-  if (mode === "dither") return paintTone(ctx, frame, palette, { ...opts, dither: true });
+  if (mode === "dither") return cw === ch ? paintTone(ctx, frame, palette, { ...opts, dither: true }) : paintDitherImage(ctx, frame, palette, opts);
   if (!opts.invert && mode === "circle") return paintTone(ctx, frame, palette, opts);
   // A steeper curve than the text looks: mid-tones stay small, only light grows.
   const { T, C, D } = densityGrid(frame, palette, { ...opts, gamma: (opts.gamma ?? 0.75) * (opts.dotCurve ?? 1.9) });
@@ -157,11 +170,11 @@ function paintTone(ctx, frame, palette, opts) {
   // brightness of every source cell (glyph ink x colour light); text and line
   // work in non-picture pieces stay as characters unless "all"
   const vals = new Float32Array(rows * cols), keys = new Array(rows * cols), text = [];
-  const pictureLike = opts.all || cw === ch;
+  const pictureLike = opts.all || cw === ch, shade = pictureLike ? null : shadeTester(T);
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
     const gch = T[r][c], k = C && C[r][c], hx = k && k !== " " && palette ? palette[k] : null, i = r * cols + c;
     if (gch === " ") { vals[i] = -1; continue; }
-    if (!pictureLike && !isShade(gch.codePointAt(0))) { vals[i] = -1; text.push([r, c, gch, hx]); continue; }
+    if (!pictureLike && !shade(gch)) { vals[i] = -1; text.push([r, c, gch, hx]); continue; }
     vals[i] = (LV[gch] ?? cover(gch) / 100) * L(hx); keys[i] = hx || opts.ink;
   }
   // percentiles from a 512-bin histogram (a full sort every frame was the bottleneck)
@@ -205,8 +218,8 @@ function paintTone(ctx, frame, palette, opts) {
     const m = layers[lvl]; let p = m.get(fill); if (!p) m.set(fill, (p = new Path2D()));
     p.moveTo(x + px + rad, y + py); p.arc(x + px, y + py, rad, 0, Math.PI * 2);
   }
-  if (pix) stampPixels(ctx, pix, x, y, sx, sy, dpr);
-  else if (stamp) stampDots(ctx, dots);
+  if (pix) stampPixels(ctx, pix, x, y, sx, sy, dpr, opts.over);
+  else if (stamp) stampDots(ctx, dots, opts.over);
   else for (const m of layers) for (const [fill, p] of m) { ctx.fillStyle = fill; ctx.fill(p); } // big dots last, so they merge
   if (text.length) {
     ctx.font = `${cw / CELL_W}px ${FONT}`; ctx.textBaseline = "middle";
@@ -218,19 +231,68 @@ const B8 = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26, 12, 44,
   3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25, 15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21];
 /* Dither pixels: solid rectangles written straight into one ImageData, edges rounded
    to device pixels so neighbours meet without seams or overlaps. */
-function stampPixels(ctx, pix, x, y, sx, sy, dpr) {
+// The pixel buffer a stamper writes into: a cleared one for live players (their canvas is
+// cleared every frame anyway), or the canvas's current pixels when something is already
+// painted underneath, like an export's background.
+function pixelBuffer(ctx, over) {
   const cv = ctx.canvas, W = cv.width, H = cv.height;
+  if (over) return ctx.getImageData(0, 0, W, H);
   let img = cv._apImg;
   if (!img || img.width !== W || img.height !== H) img = cv._apImg = new ImageData(W, H);
-  const d32 = new Uint32Array(img.data.buffer); d32.fill(0);
-  const le = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
+  img.data.fill(0);
+  return img;
+}
+const LE = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
+const PACKED = new Map(); // hex -> packed RGBA for stampPixels (stampDots keeps [r, g, b] arrays in RGB)
+const pack = (r, g, b) => (LE ? (255 << 24) | (b << 16) | (g << 8) | r : (r << 24) | (g << 16) | (b << 8) | 255) >>> 0;
+function stampPixels(ctx, pix, x, y, sx, sy, dpr, over) {
+  const cv = ctx.canvas, W = cv.width, H = cv.height;
+  const img = pixelBuffer(ctx, over), d32 = new Uint32Array(img.data.buffer);
   for (let k = 0; k < pix.length; k += 3) {
     const i = pix[k], j = pix[k + 1], hex = pix[k + 2];
-    let c = RGB.get(hex);
-    if (c === undefined) { const [r, g, b] = [1, 3, 5].map((o) => parseInt(hex.slice(o, o + 2), 16)); c = le ? (255 << 24) | (b << 16) | (g << 8) | r : (r << 24) | (g << 16) | (b << 8) | 255; RGB.set(hex, c >>> 0); c = c >>> 0; }
+    let c = PACKED.get(hex);
+    if (c === undefined) { const [r, g, b] = [1, 3, 5].map((o) => parseInt(hex.slice(o, o + 2), 16)); c = pack(r, g, b); PACKED.set(hex, c); }
     const x0 = Math.max(0, Math.round((x + i * sx) * dpr)), x1 = Math.min(W, Math.round((x + (i + 1) * sx) * dpr));
     const y0 = Math.max(0, Math.round((y + j * sy) * dpr)), y1 = Math.min(H, Math.round((y + (j + 1) * sy) * dpr));
     for (let yy = y0; yy < y1; yy++) d32.fill(c, yy * W + x0, yy * W + x1);
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+/*
+ * Dither for line art, text and every other non-picture piece: draw the frame as
+ * text onto a small canvas where one pixel is one dither pixel (the browser's
+ * downscaling averages each pixel's coverage and colour), then switch each pixel on
+ * or off against the 8x8 Bayer matrix and write it as a solid block. Shapes, lines
+ * and letters all survive as dithered pixels, so borders and rules dither too.
+ */
+function paintDitherImage(ctx, frame, palette, opts) {
+  const { x = 0, y = 0, cw, ch, ink = "#e4e4e7", dpr = 1, density = 1.31 } = opts, sat = (opts.tone && opts.tone.sat) ?? 0.85;
+  const T = (typeof frame === "string" ? frame : frame.text).split("\n");
+  const cols = T[0] ? [...T[0]].length : 0, rows = T.length;
+  const px = Math.max(1 / dpr, Math.min(cw, ch) / (2.6 * Math.max(0.3, density))); // dither pixel, CSS px
+  const gw = Math.max(1, Math.ceil((cols * cw) / px)), gh = Math.max(1, Math.ceil((rows * ch) / px));
+  const cv = ctx.canvas;
+  let off = cv._apDither;
+  if (!off) off = cv._apDither = document.createElement("canvas");
+  if (off.width !== gw || off.height !== gh) { off.width = gw; off.height = gh; }
+  const o = off.getContext("2d", { willReadFrequently: true });
+  o.setTransform(1, 0, 0, 1, 0, 0); o.clearRect(0, 0, gw, gh); o.setTransform(1 / px, 0, 0, 1 / px, 0, 0);
+  const atlas = opts.atlas || (cv._apDitherAtlas ||= new GlyphAtlas());
+  paintText(o, frame, opts.mono ? null : palette, 0, 0, cw, ch, ink, atlas, dpr);
+  const src = o.getImageData(0, 0, gw, gh).data;
+  const img = pixelBuffer(ctx, opts.over), d32 = new Uint32Array(img.data.buffer), W = cv.width, H = cv.height;
+  for (let j = 0; j < gh; j++) {
+    const y0 = Math.max(0, Math.round((y + j * px) * dpr)), y1 = Math.min(H, Math.round((y + (j + 1) * px) * dpr));
+    if (y1 <= y0) continue;
+    for (let i = 0; i < gw; i++) {
+      const q = (j * gw + i) * 4, a = src[q + 3];
+      if (a < 6 || a / 255 <= (B8[(j & 7) * 8 + (i & 7)] + 0.5) / 64) continue; // coverage against the Bayer threshold
+      const r = src[q], g = src[q + 1], b = src[q + 2], mx = Math.max(r, g, b, 1), f = (255 / mx) * sat + (1 - sat);
+      const c = pack(Math.min(255, Math.round(r * f)), Math.min(255, Math.round(g * f)), Math.min(255, Math.round(b * f)));
+      const x0 = Math.max(0, Math.round((x + i * px) * dpr)), x1 = Math.min(W, Math.round((x + (i + 1) * px) * dpr));
+      for (let yy = y0; yy < y1; yy++) d32.fill(c, yy * W + x0, yy * W + x1);
+    }
   }
   ctx.putImageData(img, 0, 0);
 }
@@ -253,11 +315,9 @@ function maskFor(r, fx, fy) {
   m = { R, n, a }; MASKS.set(key, m); return m;
 }
 const rgbOf = (h) => { let v = RGB.get(h); if (!v) { v = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)); RGB.set(h, v); } return v; };
-function stampDots(ctx, layers) {
+function stampDots(ctx, layers, over) {
   const cv = ctx.canvas, W = cv.width, H = cv.height;
-  let img = cv._apImg;
-  if (!img || img.width !== W || img.height !== H) img = cv._apImg = new ImageData(W, H);
-  const d = img.data; d.fill(0);
+  const img = pixelBuffer(ctx, over), d = img.data;
   for (const L of layers) for (let k = 0; k < L.length; k += 4) {
     const cx = L[k], cy = L[k + 1], bx = Math.floor(cx), by = Math.floor(cy);
     const m = maskFor(L[k + 2], cx - bx - 0.5, cy - by - 0.5), [r, g, b] = rgbOf(L[k + 3]);
@@ -344,7 +404,7 @@ export function renderTo(canvas, frame, palette, { width, height, bg = "#09090b"
   if (meta && meta.dots) look = { ...meta.dots, ...look }; // a piece's own halftone tuning
   const { frame: f, mode } = frameFor(frame, palette, meta, look);
   const light = /^#?[0-9a-f]{6}$/i.test(bg.replace("#", "")) && lumHex(bg) > 0.6;
-  paint(ctx, f, palette, { ...look, invert: look.invert ?? light, x: (width - cols * cw) / 2, y: (height - rows * ch) / 2, cw, ch, ink, mode });
+  paint(ctx, f, palette, { ...look, invert: look.invert ?? light, x: (width - cols * cw) / 2, y: (height - rows * ch) / 2, cw, ch, ink, mode, over: true });
   return canvas;
 }
 

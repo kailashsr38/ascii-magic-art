@@ -94,12 +94,32 @@ const isShade = (c) => c >= 0x2580 && c <= 0x259f;
  * -1 for a cell a look leaves alone (blank, or text/line work unless all).
  * Returns { T, C, D, w, h } with T/C as arrays of rows of characters.
  */
+// ASCII ramp punctuation. A frame drawn almost only in these, with next to no letters,
+// is a shaded render (a spinning torus, a plasma), so its punctuation is shading too.
+const RAMP_PUNCT = new Set(".,:;-~=+*!#%@$&");
+function rampShaded(T) {
+  let ink = 0, ramp = 0, alnum = 0;
+  for (const row of T) for (const ch of row) {
+    if (ch === " ") continue;
+    ink++;
+    if (RAMP_PUNCT.has(ch)) ramp++;
+    else { const c = ch.charCodeAt(0); if ((c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122)) alnum++; }
+  }
+  return ink > 0 && ramp >= ink * 0.5 && alnum < ink * 0.05;
+}
+/** Which characters of this frame a look redraws: shading blocks, plus ramp punctuation in shaded renders. */
+export function shadeTester(T) {
+  const rs = rampShaded(T);
+  return (ch) => isShade(ch.codePointAt(0)) || (rs && RAMP_PUNCT.has(ch));
+}
+
 export function densityGrid(frame, palette, opts = {}) {
   const str = typeof frame === "string";
   const T = (str ? frame : frame.text).split("\n").map((r) => [...r]);
   const C = str ? null : frame.color.split("\n").map((r) => [...r]);
+  const shade = opts.all ? null : shadeTester(T);
   const D = T.map((row, y) => row.map((ch, x) => {
-    if (ch === " " || (!opts.all && !isShade(ch.codePointAt(0)))) return -1;
+    if (ch === " " || (!opts.all && !shade(ch))) return -1;
     const k = C && C[y][x];
     return (cover(ch) / 100) * lum(k && k !== " " && palette ? palette[k] : null);
   }));
@@ -119,6 +139,7 @@ export function restyle(frame, palette, opts = {}) {
   const str = typeof frame === "string";
   if (!chars) return opts.mono && !str ? frame.text : frame;
   const R = ramp(chars), n = R.length - 1;
+  if (opts.look === "dither" && !opts.chars) opts = { ...opts, all: true }; // dither covers line art and text too, as on canvas
   if (opts.merge > 1 && !str) return restyleMerged(frame, palette, opts, R, opts.merge);
   const { T, D } = densityGrid(frame, palette, opts);
   // every inked cell gets at least the lightest glyph, like a halftone screen
