@@ -43,6 +43,32 @@ export function frameHTML(frame, palette, ink) {
 export const frameText = (f) => (typeof f === "string" ? f : f.text);
 
 /**
+ * Pieces with settings (meta.params, e.g. a repo name and a star count) take
+ * them in create(values). withParams returns the same module shape with the
+ * values filled in and cleaned, so play(), the looks and every export work on
+ * it unchanged. Unknown keys are ignored; text is trimmed to printable ASCII
+ * and its max length, numbers are clamped to their range.
+ *
+ *   play(pre, withParams(piece, { repo: "you/your-repo", stars: 250 }))
+ */
+export function withParams(mod, values = {}) {
+  const P = mod && mod.meta && mod.meta.params;
+  if (!P) return mod;
+  const v = {};
+  for (const [k, d] of Object.entries(P)) {
+    const raw = values[k];
+    if (d.type === "number") {
+      const n = Math.round(Number(raw));
+      v[k] = Number.isFinite(n) && raw !== "" && raw !== null && raw !== undefined ? Math.min(d.max ?? Infinity, Math.max(d.min ?? -Infinity, n)) : d.default;
+    } else {
+      const s = raw === undefined || raw === null ? d.default : String(raw).replace(/[^\x20-\x7e]/g, "").trim().slice(0, d.max || 40);
+      v[k] = s || d.default;
+    }
+  }
+  return { meta: mod.meta, default: () => mod.default(v), params: v };
+}
+
+/**
  * Play a piece module in a <pre>. Options: speed (1), still (false: honour
  * reduced motion), look ({ look, chars, all, mono, gamma }, see glyphs.js),
  * onFrame(frame, t).

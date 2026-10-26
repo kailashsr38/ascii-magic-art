@@ -75,7 +75,7 @@ export default function create() {
       ART2.slice(0, n).forEach((l, i) => g.text(2, y + 1 + i, l, i === 1 ? "9" : "3"));
       const yy = y + 1 + ART2.length + 1;
       if (k > 1.2) { g.text(4, yy, "Enter your handle: ", "0"); g.text(23, yy, type("NIGHTCRAWLER", BBS + 1.6, lt, 0.09), "2"); }
-      if (k > 3.2) { g.text(4, yy + 1, "Password: ", "0"); g.text(14, yy + 1, "*".repeat(Math.min(8, Math.floor((k - 3.4) / 0.1))), "1"); }
+      if (k > 3.2) { g.text(4, yy + 1, "Password: ", "0"); g.text(14, yy + 1, "*".repeat(Math.max(0, Math.min(8, Math.floor((k - 3.4) / 0.1)))), "1"); }
       if (k > 4.6) g.text(4, yy + 2, "Welcome back! You have 3 new messages.", "2");
       if (k > 5.4) g.text(4, yy + 3, "[M]essages  [F]iles  [D]oors  [C]hat  [G]oodbye", "a");
     }

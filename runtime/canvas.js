@@ -161,7 +161,9 @@ function paintTone(ctx, frame, palette, opts) {
   const { x = 0, y = 0, cw, ch, tone = {} } = opts, size = (opts.size ?? 0.51) / 0.85; // 0.85 = a full-cell dot
   const density = Math.max(0.3, opts.density ?? 1.31); // dots per cell along each side; spacing only, not dot size
   const dpr = opts.dpr || 1;
-  const lo = tone.lo ?? 0.04, hi = tone.hi ?? 0.985, g = tone.curve ?? 1.1, sat = tone.sat ?? 0.85;
+  // Contrast (gamma 0.35 = 0%, up to 1.15 = 100%) steepens the tone curve: at 100% the shadows
+  // lose their dots and only the light keeps them. 0% leaves the curve exactly as it was.
+  const lo = tone.lo ?? 0.04, hi = tone.hi ?? 0.985, g = (tone.curve ?? 1.1) * Math.max(1, (opts.gamma ?? 0.35) / 0.35), sat = tone.sat ?? 0.85;
   const T = (typeof frame === "string" ? frame : frame.text).split("\n").map((r) => [...r]);
   const C = typeof frame === "string" || !frame.color ? null : frame.color.split("\n").map((r) => [...r]);
   const rows = T.length, cols = T[0] ? T[0].length : 0;
@@ -271,6 +273,7 @@ function paintDitherImage(ctx, frame, palette, opts) {
   const T = (typeof frame === "string" ? frame : frame.text).split("\n");
   const cols = T[0] ? [...T[0]].length : 0, rows = T.length;
   const px = Math.max(1 / dpr, Math.min(cw, ch) / (2.6 * Math.max(0.3, density))); // dither pixel, CSS px
+  const kc = Math.max(1, (opts.gamma ?? 0.35) / 0.35); // contrast, same curve as the picture path
   const gw = Math.max(1, Math.ceil((cols * cw) / px)), gh = Math.max(1, Math.ceil((rows * ch) / px));
   const cv = ctx.canvas;
   let off = cv._apDither;
@@ -287,7 +290,7 @@ function paintDitherImage(ctx, frame, palette, opts) {
     if (y1 <= y0) continue;
     for (let i = 0; i < gw; i++) {
       const q = (j * gw + i) * 4, a = src[q + 3];
-      if (a < 6 || a / 255 <= (B8[(j & 7) * 8 + (i & 7)] + 0.5) / 64) continue; // coverage against the Bayer threshold
+      if (a < 6 || Math.pow(a / 255, kc) <= (B8[(j & 7) * 8 + (i & 7)] + 0.5) / 64) continue; // coverage (with contrast) against the Bayer threshold
       const r = src[q], g = src[q + 1], b = src[q + 2], mx = Math.max(r, g, b, 1), f = (255 / mx) * sat + (1 - sat);
       const c = pack(Math.min(255, Math.round(r * f)), Math.min(255, Math.round(g * f)), Math.min(255, Math.round(b * f)));
       const x0 = Math.max(0, Math.round((x + i * px) * dpr)), x1 = Math.min(W, Math.round((x + (i + 1) * px) * dpr));

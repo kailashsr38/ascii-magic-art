@@ -17,6 +17,7 @@ import path from "path";
 import { spawnSync } from "child_process";
 import { fileURLToPath, pathToFileURL } from "url";
 import { withLook, restyle, LOOKS } from "../runtime/glyphs.js";
+import { withParams } from "../runtime/player.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DIR = path.join(ROOT, "pieces");
@@ -70,7 +71,7 @@ function promptFor(slug, name, picked) {
   const look = (lk && lk !== "original" ? ` look="${lk}"` : "") + (lk && lk !== "original" && all ? " all" : "");
   if (!slug) return `Add an animated ASCII art piece from ASCII Magic to this project.
 
-1. Read ${SITE}/ascii/index.json (634 pieces) and pick the one that fits this project best.
+1. Read ${SITE}/ascii/index.json (734 pieces) and pick the one that fits this project best.
 2. Load the script once, in the browser only (in SSR frameworks such as Next.js, load it on the client):
    <script type="module" src="${SITE}/ascii/ascii.js"></script>
 3. Put the piece where it fits best, such as the hero, a loading state, an empty state or the 404 page:
@@ -156,7 +157,8 @@ function fitLines(frame, meta, w = Infinity, h = Infinity, styled = restyled) {
 }
 
 async function load(slug) {
-  const mod = await import(pathToFileURL(path.join(DIR, slug + ".js")).href);
+  // --repo=you/your-repo --stars=250: a piece's own settings, by name (meta.params)
+  const mod = withParams(await import(pathToFileURL(path.join(DIR, slug + ".js")).href), flags);
   return { meta: mod.meta, raw: mod.default(), draw: withLook(mod.default(), mod.meta.palette, lookOpts) };
 }
 
@@ -164,7 +166,7 @@ async function load(slug) {
 const first = args[0];
 if (flags.help || flags.h || first === "help") {
   out.write(`
-  ${bold("ascii-magic-art")}  634 animated ASCII art pieces for web pages, READMEs and terminals
+  ${bold("ascii-magic-art")}  734 animated ASCII art pieces for web pages, READMEs and terminals
 
   ${CMD}                      browse them all live (s changes the look), enter copies a prompt for your coding agent
   ${CMD} prompt <piece>       print and copy that prompt
@@ -238,7 +240,7 @@ async function browse() {
   const frameAt = (t) => { const raw = cur.raw(t), lk = lookNow(); return lk === "original" ? raw : restyle(raw, cur.meta.palette, { look: lk, all }); };
 
   const cleanup = () => { clearInterval(timer); out.write("\x1b[0m\x1b[?25h\x1b[?1049l"); try { process.stdin.setRawMode(false); } catch {} process.stdin.pause(); };
-  const quit = () => { cleanup(); out.write(`  634 pieces to browse on the web: ${SITE}/ascii\n  Add one in one prompt:  ${bold(`${CMD} prompt <piece>`)}\n\n`); process.exit(0); };
+  const quit = () => { cleanup(); out.write(`  734 pieces to browse on the web: ${SITE}/ascii\n  Add one in one prompt:  ${bold(`${CMD} prompt <piece>`)}\n\n`); process.exit(0); };
   process.on("SIGINT", quit);
   out.write("\x1b[?1049h\x1b[?25l\x1b[2J");
   process.stdin.setRawMode(true); process.stdin.resume();
@@ -256,8 +258,8 @@ async function browse() {
     const W = out.columns || 80, H = out.rows || 24, mw = MARK[0].length;
     if (!color || W < mw + 4 || H < 14) { intro = false; return; }
     const pad = " ".repeat(Math.floor((W - mw) / 2)), top = Math.max(1, Math.floor((H - 12) / 2));
-    const lines2 = [`${bold("634 animated ASCII pieces.")} Add one to your project in ${paint("#00f5a0", "one prompt")}.`, dim("Arrow keys to browse, s to change the look, enter to copy, paste into your coding agent.")];
-    const plain2 = ["634 animated ASCII pieces. Add one to your project in one prompt.", "Arrow keys to browse, s to change the look, enter to copy, paste into your coding agent."];
+    const lines2 = [`${bold("734 animated ASCII pieces.")} Add one to your project in ${paint("#00f5a0", "one prompt")}.`, dim("Arrow keys to browse, s to change the look, enter to copy, paste into your coding agent.")];
+    const plain2 = ["734 animated ASCII pieces. Add one to your project in one prompt.", "Arrow keys to browse, s to change the look, enter to copy, paste into your coding agent."];
     const start = Date.now();
     await new Promise((res) => {
       const tick = setInterval(() => {

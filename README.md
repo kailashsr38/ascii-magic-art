@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  634 animated ASCII art pieces for web pages, READMEs, wallpapers and terminals.<br>
+  734 animated ASCII art pieces for web pages, READMEs, wallpapers and terminals.<br>
   Scenes, interfaces, charts, diagrams, 3D shapes, loaders, games, dividers and more, in 24 categories.<br>
   <a href="https://www.ascii-magic.com/ascii">Browse the library</a> ·
   <a href="https://www.ascii-magic.com/ascii/docs">Docs</a> ·
@@ -17,7 +17,7 @@
 npx ascii-magic-art
 ```
 
-Browse all 634 pieces live in your terminal. Arrow keys move between pieces and categories, `s` changes the look (halftone dots, ASCII, binary, dither and more) and `a` redraws text and line art too. Press enter and a prompt for that piece, in that look, is copied to your clipboard: paste it into Claude Code, Cursor, Copilot or any coding agent and it adds the piece to your site. Or skip the browsing:
+Browse all 734 pieces live in your terminal. Arrow keys move between pieces and categories, `s` changes the look (halftone dots, ASCII, binary, dither and more) and `a` redraws text and line art too. Press enter and a prompt for that piece, in that look, is copied to your clipboard: paste it into Claude Code, Cursor, Copilot or any coding agent and it adds the piece to your site. Or skip the browsing:
 
 ```bash
 npx ascii-magic-art prompt matrix-rain

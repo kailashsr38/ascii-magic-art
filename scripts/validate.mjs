@@ -68,11 +68,11 @@ for (const f of files.sort()) {
       }
       const odd = [...new Set([...text.replace(/\n/g, "")].filter((c) => !okChar(c)))];
       if (odd.length) { errs.push(`t=${t}: characters not safe for monospace: ${odd.join(" ")}`); break; }
-      frames.push(text);
+      frames.push(typeof fr === "object" && fr.color ? text + "\n" + fr.color : text); // colour changes are motion too
     }
     if (!errs.length) {
       if (new Set(frames).size < 3 && !m.still) errs.push("frames barely change: it should animate (or set meta.still = true)");
-      const blank = frames[0].replace(/\s/g, "").length / (m.cols * m.rows);
+      const blank = frames[0].split("\n").slice(0, m.rows).join("").replace(/\s/g, "").length / (m.cols * m.rows);
       if (blank < 0.02) errs.push(`first frame is ${(blank * 100).toFixed(1)}% ink: nearly empty`);
       const avg = ms / n;
       if (avg > 12) errs.push(`slow: ${avg.toFixed(1)} ms per frame (limit 12)`);

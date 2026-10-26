@@ -12,9 +12,11 @@
  * (0 to 100, default 0), dot-size (halftone dot size, 25 to 120, default 51),
  * steps (halftone dot sizes: 3, 5, or 0 for smooth), density (dot spacing, 40
  * to 250, default 131: more dots closer together, dot size unchanged), all
- * (redraw text and line work in the look too, not only shading).
+ * (redraw text and line work in the look too, not only shading). Pieces with
+ * settings take them as attributes too: <ascii-art piece="star-milestone"
+ * repo="you/your-repo" stars="250">.
  */
-import { play } from "./player.js";
+import { play, withParams } from "./player.js";
 
 // Pieces sit next to this file on ascii-magic.com (/ascii/ascii.js, /ascii/pieces/) and one
 // folder up in the npm package (runtime/ascii.js, pieces/), so self-hosting the package works too.
@@ -43,7 +45,10 @@ class AsciiArt extends HTMLElement {
     try {
       const mod = await import(`${BASE}pieces/${slug}.js`);
       if (!this.getAttribute("aria-label")) this.setAttribute("aria-label", mod.meta.name + ", animated ASCII art");
-      this.stop = play(this.pre, mod, {
+      // a piece's own settings come straight from attributes of the same name (repo="..." stars="...")
+      const P = mod.meta.params || {}, values = {};
+      for (const k of Object.keys(P)) if (this.hasAttribute(k)) values[k] = this.getAttribute(k);
+      this.stop = play(this.pre, withParams(mod, values), {
         speed: parseFloat(this.getAttribute("speed")) || 1,
         still: this.hasAttribute("still") || undefined,
         look: {
