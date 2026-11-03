@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  734 animated ASCII art pieces for web pages, READMEs, wallpapers and terminals.<br>
+  834 animated ASCII art pieces for web pages, READMEs, wallpapers and terminals.<br>
   Scenes, interfaces, charts, diagrams, 3D shapes, loaders, games, dividers and more, in 24 categories.<br>
   <a href="https://www.ascii-magic.com/ascii">Browse the library</a> ·
   <a href="https://www.ascii-magic.com/ascii/docs">Docs</a> ·
@@ -68,7 +68,7 @@ The element plays only while it is on screen, and holds a still frame for visito
 npm install ascii-magic-art
 ```
 
-Every piece is one small ES module with no dependencies apart from `lib/kit.js`. It exports `meta` and a `create()` function that returns `draw(t)`, a function from seconds to a frame:
+Every piece is a small ES module with no third-party runtime dependencies. Most draw directly with `lib/kit.js`; a curated collection also uses `lib/atelier.js` for shared scene mechanics. Each exports `meta` and a `create()` function that returns `draw(t)`, a function from seconds to a frame:
 
 ```js
 import create, { meta } from "ascii-magic-art/pieces/spinning-torus.js";
