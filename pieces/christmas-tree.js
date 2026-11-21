@@ -16,7 +16,7 @@ export const meta = {
   category: "occasions",
   note: "A decorated fir tree with twinkling coloured lights, gold garlands and a shining star, presents waiting in the snow.",
   tags: ["christmas", "holiday", "winter", "tree", "snow", "hero"],
-  cols: 80, rows: 38, fps: 15,
+  cols: 160, rows: 38, fps: 15,
   palette: pal,
 };
 
@@ -25,7 +25,7 @@ const SH = " ░▒▓█";
 export default function create() {
   const { cols, rows } = meta;
   const g = new Grid(cols, rows);
-  const cx = 40, GROUND = 31;
+  const cx = 80, GROUND = 31;
   const tiers = [[7, 12, 1, 7], [10, 17, 3, 12], [15, 23, 5, 17], [21, 30, 7, 23]];
   const halfW = (y) => {
     let w = -1;
